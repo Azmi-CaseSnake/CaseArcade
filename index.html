@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>CELESTIAL EMPIRE - PERMANENT AUTO</title>
+<style>
+    /* CSS remains identical to maintain your design */
+    :root { --neon: #39ff14; --gold: #ffcc00; --bg: #000; --card-bg: #0a0a0a; --red: #ff4444; }
+    html, body { 
+        margin: 0; padding: 0; height: 100vh; width: 100vw; 
+        font-family: 'Arial Black', sans-serif; background: var(--bg); color: #fff; 
+        overflow: hidden; user-select: none; display: flex; flex-direction: column;
+    }
+
+    .tab-btn, .card {
+        cursor: pointer; border: 4px solid #222; background: var(--card-bg); 
+        border-radius: 25px; transition: 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+        font-weight: 900; color: #fff;
+    }
+    .card:hover { transform: scale(1.05); border-color: #555; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 5; }
+    
+    #upgrades .card { cursor: default; }
+    #upgrades .card:hover { transform: none; box-shadow: none; border-color: #222; z-index: 1; }
+
+    .can-afford:hover { border-color: var(--neon) !important; box-shadow: 0 0 25px var(--neon); }
+    .tab-btn:active, .card:active { transform: scale(0.95); }
+
+    .can-afford { border-color: var(--neon) !important; box-shadow: 0 0 15px rgba(57, 255, 20, 0.2); }
+    .cant-afford { border-color: #222 !important; opacity: 0.3; pointer-events: none; }
+    .tab-btn.active { background: var(--neon); color: #000; border-color: #fff; box-shadow: 0 0 30px var(--neon); }
+
+    .card.selected-case {
+        border-color: var(--gold) !important;
+        background: #161616;
+        box-shadow: 0 0 50px var(--gold), inset 0 0 20px rgba(255, 204, 0, 0.2) !important;
+        transform: scale(1.05);
+        z-index: 10;
+    }
+
+    #top-bar { padding: 15px 40px; border-bottom: 5px solid var(--gold); display: flex; justify-content: space-between; align-items: center; font-size: 26px; background: #050505; }
+    .nav-tabs { display: flex; background: #080808; padding: 12px; gap: 10px; justify-content: center; }
+    .tab-btn { padding: 12px 25px; font-size: 13px; text-transform: uppercase; }
+
+    .menu-content { display: none; padding: 25px; flex-grow: 1; overflow-y: auto; }
+    .menu-content.active { display: block; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; padding-bottom: 120px; }
+    .card { padding: 25px; text-align: center; }
+
+    #roll-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
+    #roll-card { width: 320px; padding: 40px; border: 8px solid var(--neon); border-radius: 40px; background: #000; text-align: center; transition: 0.3s; }
+    .reveal-pop { transform: scale(1.2) rotate(2deg); box-shadow: 0 0 100px var(--neon); }
+
+    .money-pop { position: fixed; color: var(--neon); font-size: 40px; font-weight: 900; pointer-events: none; z-index: 10000; animation: pop 0.7s forwards; }
+    @keyframes pop { 0% { opacity: 1; transform: scale(0.5); } 100% { opacity: 0; transform: scale(1.5) translateY(-100px); } }
+    
+    #open-btn-container { 
+        position: fixed; bottom: 30px; width: 100%; display: none; flex-direction: column; align-items: center; 
+        z-index: 500; pointer-events: none; gap: 10px;
+    }
+    #open-btn { 
+        width: 550px; height: 85px; font-size: 20px; font-weight: 900; 
+        background: #000; color: #fff; border: 6px solid var(--neon); 
+        border-radius: 45px; cursor: pointer; pointer-events: auto;
+    }
+    #auto-toggle, #autosell-toggle {
+        pointer-events: auto; background: #111; padding: 10px 20px; border-radius: 20px; 
+        border: 2px solid #444; color: #888; font-size: 12px; cursor: pointer;
+    }
+    #auto-toggle.on, #autosell-toggle.on { border-color: var(--neon); color: var(--neon); box-shadow: 0 0 10px var(--neon); }
+
+    canvas { border: 4px solid #333; border-radius: 20px; background: #000; display: block; margin: 0 auto; }
+    #save-msg { position: fixed; top: 10px; right: 10px; color: #555; font-size: 10px; opacity: 0; transition: opacity 0.5s; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div id="save-msg">GAME SAVED</div>
+<div id="hammer" style="position:fixed; pointer-events:none; z-index:9999; font-size:50px; display:none; transform:translate(-50%,-50%)">🔨</div>
+
+<div id="roll-overlay">
+    <div id="roll-card">
+        <h1 id="roll-icon" style="font-size:90px; margin:0">📦</h1>
+        <h2 id="roll-name">INVESTING...</h2>
+    </div>
+</div>
+
+<div id="top-bar">
+    <div style="color:var(--neon)">$ <span id="balance">500</span></div>
+    <button id="daily-btn" class="tab-btn can-afford" onclick="claimDaily()">🎁 REWARD</button>
+    <div style="color:var(--gold)">👑 RB: <span id="reb-count">0</span></div>
+</div>
+
+<div class="nav-tabs">
+    <button class="tab-btn active" onclick="tab('chests', event)">INVEST</button>
+    <button class="tab-btn" onclick="tab('arcade', event)">ARCADE</button>
+    <button class="tab-btn" onclick="tab('upgrades', event)">SHOP</button>
+    <button class="tab-btn" onclick="tab('skins', event)">SKINS</button>
+    <button class="tab-btn" onclick="tab('inventory', event)">BAG</button>
+</div>
+
+<div id="chests" class="menu-content active"><div id="chest-grid" class="grid"></div></div>
+
+<div id="upgrades" class="menu-content">
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <div style="text-align:left"><h2>🍀 LUCK</h2><p>BETTER PROFITS</p></div>
+        <button id="luck-btn" class="tab-btn" onclick="buyUpg('luck', event)"></button>
+    </div>
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <div style="text-align:left"><h2>⚡ POWER</h2><p>ARCADE MULTI</p></div>
+        <button id="speed-btn" class="tab-btn" onclick="buyUpg('speed', event)"></button>
+    </div>
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <div style="text-align:left"><h2>🤖 AUTO</h2><p>PERMANENT UNLOCK</p></div>
+        <button id="auto-btn" class="tab-btn" onclick="buyUpg('auto', event)"></button>
+    </div>
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <div style="text-align:left"><h2>🚀 MEGA AUTO</h2><p>FASTER ROLLING</p></div>
+        <button id="mega-btn" class="tab-btn" onclick="buyUpg('mega', event)"></button>
+    </div>
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <div style="text-align:left"><h2>💰 AUTO SELL</h2><p>INSTANT PROFITS</p></div>
+        <button id="autosell-btn" class="tab-btn" onclick="buyUpg('autosell', event)"></button>
+    </div>
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center; border-color:var(--gold)">
+        <div style="text-align:left"><h2>👑 ASCEND</h2><p>REBIRTH</p></div>
+        <button id="rb-btn" class="tab-btn" onclick="doRebirth(event)"></button>
+    </div>
+    <button class="tab-btn" style="margin-top:20px; width:100%; border-color:#555;" onclick="hardReset()">❌ RESET SAVE (DELETE DATA)</button>
+</div>
+
+<div id="arcade" class="menu-content"><canvas id="canvas" width="500" height="400"></canvas><div style="display:flex; justify-content:center; gap:10px; margin-top:20px;"><button class="tab-btn can-afford" onclick="initSnake()">SNAKE</button><button class="tab-btn can-afford" onclick="initMole()">MOLE</button><button class="tab-btn" style="border-color:red" onclick="stopGame()">STOP</button></div></div>
+<div id="skins" class="menu-content"><div id="skin-grid" class="grid"></div></div>
+<div id="inventory" class="menu-content">
+    <div id="autosell-toggle" style="text-align:center; margin-bottom:10px;" onclick="toggleAutoSell()">AUTO-SELL: OFF</div>
+    <button class="tab-btn can-afford" style="width:100%; height:70px; margin-bottom:20px;" onclick="sellAll(event)">COLLECT ALL PROFITS</button>
+    <div id="inv-grid" class="grid"></div>
+</div>
+
+<div id="open-btn-container">
+    <div id="auto-toggle" onclick="toggleAuto()">AUTO-ROLL: OFF</div>
+    <button id="open-btn" onclick="startRoll()"></button>
+</div>
+
+<script>
+let balance = 500, rebirths = 0, luck = 0, power = 1, inventory = [], curCase = null, activeSkin = "Classic";
+let luckLvl = 0, powerLvl = 0, moleSpeed = 1200;
+let lastDailyClaim = 0, hasAuto = false, autoOn = false, isRolling = false;
+
+// New variables for Mega and AutoSell
+let megaAutoLvl = 0, hasAutoSell = false, autoSellActive = false;
+
+function loadGame() {
+    const saved = localStorage.getItem('celestialSave_v1');
+    if (saved) {
+        try {
+            const data = JSON.parse(saved);
+            balance = data.balance ?? 500;
+            rebirths = data.rebirths ?? 0;
+            luckLvl = data.luckLvl ?? 0;
+            powerLvl = data.powerLvl ?? 0;
+            inventory = data.inventory ?? [];
+            activeSkin = data.activeSkin ?? "Classic";
+            lastDailyClaim = data.lastDailyClaim ?? 0; 
+            hasAuto = data.hasAuto ?? false; 
+            megaAutoLvl = data.megaAutoLvl ?? 0;
+            hasAutoSell = data.hasAutoSell ?? false;
+            luck = luckLvl; 
+            power = Math.pow(2, powerLvl);
+        } catch(e) { console.log("Save corrupted"); }
+    }
+}
+loadGame(); 
+
+function saveGame() {
+    const data = { balance, rebirths, luckLvl, powerLvl, inventory, activeSkin, lastDailyClaim, hasAuto, megaAutoLvl, hasAutoSell };
+    localStorage.setItem('celestialSave_v1', JSON.stringify(data));
+    const msg = document.getElementById('save-msg');
+    msg.style.opacity = 1;
+    setTimeout(() => msg.style.opacity = 0, 1000);
+}
+setInterval(saveGame, 2000); 
+
+function hardReset() {
+    if(confirm("Are you sure? This will wipe all progress completely.")) {
+        localStorage.removeItem('celestialSave_v1');
+        location.reload();
+    }
+}
+
+let activeGame = 'none', gameInt, moleSpawnInt, snake = [], dir = "RIGHT", apple = {}, moles = [];
+const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+
+const items = [{n:"ASSET", v:1.25, i:"📦", c:"#666"}, {n:"PREMIUM", v:35, i:"💎", c:"#00e5ff"}, {n:"LEGACY", v:15000, i:"🌀", c:"var(--neon)"}];
+const skins = [{n:"Classic", req:0, c:"#39ff14", m:1}, {n:"Neon", req:1, c:"#00e5ff", m:5}, {n:"Gold", req:3, c:"#ffcc00", m:25}, {n:"Empire", req:7, c:"#ff00ff", m:150}];
+
+function f(n) {
+    let val = n || 0;
+    if (val < 1000) return Math.floor(val).toString();
+    const units = ["K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc", "Un", "Du", "Tr", "Qu"];
+    const i = Math.floor(Math.log10(val) / 3) - 1;
+    let idx = Math.min(i, units.length - 1);
+    return (val / Math.pow(1000, idx + 1)).toFixed(2) + units[idx];
+}
+
+function formatTime(ms) {
+    let s = Math.floor((ms / 1000) % 60);
+    let m = Math.floor((ms / (1000 * 60)) % 60);
+    let h = Math.floor((ms / (1000 * 60 * 60)) % 24);
+    return `${h}:${m<10?'0'+m:m}:${s<10?'0'+s:s}`;
+}
+
+function refresh() {
+    document.getElementById('balance').innerText = f(balance);
+    document.getElementById('reb-count').innerText = f(rebirths);
+    
+    let now = Date.now();
+    let diff = now - lastDailyClaim;
+    let cooldown = 86400000; 
+    let btn = document.getElementById('daily-btn');
+    
+    if (diff >= cooldown) {
+        btn.innerText = "🎁 REWARD";
+        btn.className = "tab-btn can-afford";
+        btn.onclick = claimDaily;
+    } else {
+        btn.innerText = "⏳ " + formatTime(cooldown - diff);
+        btn.className = "tab-btn cant-afford";
+        btn.onclick = null; 
+    }
+
+    let lC = 1000 * Math.pow(2.2, luckLvl), pC = 5000 * Math.pow(2.5, powerLvl), rC = 50000 * Math.pow(10, rebirths);
+    let aC = 2500000;
+    let mC = 10000000 * Math.pow(5, megaAutoLvl);
+    let sC = 50000000;
+
+    document.getElementById('luck-btn').innerText = "$" + f(lC);
+    document.getElementById('luck-btn').className = balance >= lC ? "tab-btn can-afford" : "tab-btn cant-afford";
+    document.getElementById('speed-btn').innerText = "$" + f(pC);
+    document.getElementById('speed-btn').className = balance >= pC ? "tab-btn can-afford" : "tab-btn cant-afford";
+    document.getElementById('rb-btn').innerText = "$" + f(rC);
+    document.getElementById('rb-btn').className = balance >= rC ? "tab-btn can-afford" : "tab-btn cant-afford";
+    
+    let abtn = document.getElementById('auto-btn');
+    if(hasAuto) { abtn.innerText = "UNLOCKED"; abtn.className = "tab-btn"; abtn.style.borderColor = "var(--neon)"; abtn.onclick = null; }
+    else { abtn.innerText = "$2.5M"; abtn.className = balance >= aC ? "tab-btn can-afford" : "tab-btn cant-afford"; }
+
+    let mbtn = document.getElementById('mega-btn');
+    mbtn.innerText = "$" + f(mC);
+    mbtn.className = balance >= mC ? "tab-btn can-afford" : "tab-btn cant-afford";
+
+    let sbtn = document.getElementById('autosell-btn');
+    if(hasAutoSell) { sbtn.innerText = "UNLOCKED"; sbtn.className = "tab-btn"; sbtn.style.borderColor = "var(--neon)"; sbtn.onclick = null; }
+    else { sbtn.innerText = "$50M"; sbtn.className = balance >= sC ? "tab-btn can-afford" : "tab-btn cant-afford"; }
+
+    let obc = document.getElementById('open-btn-container');
+    if(document.getElementById('chests').classList.contains('active') && curCase) {
+        obc.style.display = 'flex';
+        document.getElementById('open-btn').innerText = `INVEST $${f(curCase.cost)} TO OPEN CASE`;
+        document.getElementById('open-btn').className = balance >= curCase.cost ? "can-afford" : "cant-afford";
+        document.getElementById('auto-toggle').style.display = hasAuto ? 'block' : 'none';
+    } else obc.style.display = 'none';
+
+    document.getElementById('autosell-toggle').style.display = hasAutoSell ? 'block' : 'none';
+}
+setInterval(refresh, 100);
+
+function toggleAuto() {
+    autoOn = !autoOn;
+    let t = document.getElementById('auto-toggle');
+    t.innerText = autoOn ? "AUTO-ROLL: ON" : "AUTO-ROLL: OFF";
+    t.className = autoOn ? "on" : "";
+}
+
+function toggleAutoSell() {
+    autoSellActive = !autoSellActive;
+    let t = document.getElementById('autosell-toggle');
+    t.innerText = autoSellActive ? "AUTO-SELL: ON" : "AUTO-SELL: OFF";
+    t.className = autoSellActive ? "on" : "";
+}
+
+// Auto Roller Loop - Adjusted by Mega Auto
+setInterval(() => {
+    if(autoOn && hasAuto && curCase && balance >= curCase.cost && !isRolling) {
+        startRoll();
+    }
+}, 1500 / (1 + megaAutoLvl));
+
+// Auto Sell Loop
+setInterval(() => {
+    if(hasAutoSell && autoSellActive && inventory.length > 0) {
+        sellAll({clientX: window.innerWidth/2, clientY: window.innerHeight/2});
+    }
+}, 1000);
+
+function claimDaily() {
+    let now = Date.now();
+    if (now - lastDailyClaim >= 86400000) {
+        let g = 20000 * (rebirths + 1);
+        balance += g;
+        lastDailyClaim = now; 
+        moneyPop(window.innerWidth/2, 200, g);
+        saveGame();
+        refresh(); 
+    }
+}
+
+function drawChests() {
+    let g = document.getElementById('chest-grid'); g.innerHTML = '';
+    for(let i=1; i<=100; i++) {
+        let cost = i===1 ? 100 : Math.floor(200 * Math.pow(3, i-1));
+        let lock = rebirths < (i-1);
+        let isSelected = curCase?.id === i;
+        let d = document.createElement('div'); 
+        if(isSelected) d.className = 'card selected-case';
+        else d.className = `card ${balance >= cost && !lock ? 'can-afford' : ''}`;
+        if(lock) d.style.opacity = "0.05";
+        d.innerHTML = `<h3>CASE ${i}</h3><b>$${f(cost)}</b><br><small style="color:var(--neon)">Min Profit: $${f(cost*1.25)}</small>`;
+        if(!lock) d.onclick = () => { curCase={id:i, cost}; drawChests(); };
+        g.appendChild(d);
+    }
+}
+
+function startRoll() {
+    if(!curCase || balance < curCase.cost || isRolling) return;
+    isRolling = true;
+    balance -= curCase.cost;
+    saveGame();
+    const overlay = document.getElementById('roll-overlay'), card = document.getElementById('roll-card');
+    const iconEl = document.getElementById('roll-icon'), nameEl = document.getElementById('roll-name');
+    overlay.style.display = 'flex'; card.classList.remove('reveal-pop');
+    let flickerCount = 0;
+    let flickerInt = setInterval(() => {
+        let temp = items[Math.floor(Math.random()*items.length)];
+        iconEl.innerText = temp.i; nameEl.innerText = temp.n; nameEl.style.color = temp.c;
+        if(++flickerCount > 10) {
+            clearInterval(flickerInt);
+            let win = items[Math.random() < (0.05 + luck*0.01) ? 2 : (Math.random() < 0.25 ? 1 : 0)];
+            iconEl.innerText = win.i; nameEl.innerText = win.n; nameEl.style.color = win.c;
+            card.classList.add('reveal-pop');
+            inventory.push({...win, val: win.v * curCase.cost});
+            saveGame();
+            setTimeout(() => { overlay.style.display = 'none'; isRolling = false; }, 800);
+        }
+    }, 80);
+}
+
+function buyUpg(t, e) {
+    if(t === 'auto') {
+        if(balance >= 2500000 && !hasAuto) { balance -= 2500000; hasAuto = true; saveGame(); }
+        return;
+    }
+    if(t === 'mega') {
+        let cost = 10000000 * Math.pow(5, megaAutoLvl);
+        if(balance >= cost) { balance -= cost; megaAutoLvl++; saveGame(); }
+        return;
+    }
+    if(t === 'autosell') {
+        if(balance >= 50000000 && !hasAutoSell) { balance -= 50000000; hasAutoSell = true; saveGame(); }
+        return;
+    }
+    let cost = t==='luck' ? 1000 * Math.pow(2.2, luckLvl) : 5000 * Math.pow(2.5, powerLvl);
+    if(balance >= cost) { 
+        balance -= cost; 
+        if(t==='luck'){luckLvl++; luck++;} else {powerLvl++; power*=2;} 
+        saveGame();
+    }
+}
+
+function doRebirth(e) {
+    let rC = 50000 * Math.pow(10, rebirths);
+    if(balance >= rC) { 
+        // Logic for Rebirth: hasAuto, megaAutoLvl, and hasAutoSell are NOT reset
+        balance=500; rebirths++; inventory=[]; luckLvl=0; powerLvl=0; luck=0; power=1; 
+        drawChests(); drawSkins(); 
+        saveGame();
+    }
+}
+
+function initSnake() { stopGame(); activeGame='snake'; snake = [{x:240,y:200},{x:220,y:200}]; dir="RIGHT"; spawnApple(); gameInt = setInterval(() => { let head = {...snake[0]}; if(dir==="UP") head.y-=20; if(dir==="DOWN") head.y+=20; if(dir==="LEFT") head.x-=20; if(dir==="RIGHT") head.x+=20; if(head.x===apple.x && head.y===apple.y) { let g = 5000*(rebirths+1)*power; balance+=g; spawnApple(); let r = canvas.getBoundingClientRect(); moneyPop(r.left+head.x, r.top+head.y, g); } else snake.pop(); if(head.x<0||head.x>=500||head.y<0||head.y>=400||snake.some(s=>s.x===head.x&&s.y===head.y)) return stopGame(); snake.unshift(head); ctx.fillStyle="#000"; ctx.fillRect(0,0,500,400); let clr = (skins.find(s=>s.n===activeSkin) || skins[0]).c; snake.forEach((p,i)=>{ ctx.fillStyle=i===0?"#fff":clr; ctx.beginPath(); ctx.arc(p.x+10,p.y+10,10,0,Math.PI*2); ctx.fill(); }); ctx.fillStyle="red"; ctx.beginPath(); ctx.arc(apple.x+10,apple.y+10,8,0,Math.PI*2); ctx.fill(); }, 90); }
+function spawnApple() { apple = {x:Math.floor(Math.random()*24)*20, y:Math.floor(Math.random()*19)*20}; }
+function initMole() { stopGame(); activeGame='mole'; document.getElementById('hammer').style.display='block'; moleSpeed = 1200; moles = Array(9).fill(0).map((_,i)=>({x:(i%3)*150+100, y:Math.floor(i/3)*110+90, up:false})); gameInt = setInterval(() => { ctx.fillStyle="#000"; ctx.fillRect(0,0,500,400); moles.forEach(m => { ctx.fillStyle="#111"; ctx.beginPath(); ctx.ellipse(m.x, m.y+30, 50, 15, 0, 0, Math.PI*2); ctx.fill(); if(m.up) { ctx.fillStyle="#795548"; ctx.beginPath(); ctx.arc(m.x, m.y, 35, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#ff80ab"; ctx.beginPath(); ctx.arc(m.x, m.y+5, 6, 0, Math.PI*2); ctx.fill(); } }); }, 30); const spawn = () => { if(activeGame !== 'mole') return; moles.forEach(m => m.up = false); moles[Math.floor(Math.random()*9)].up = true; moleSpawnInt = setTimeout(spawn, moleSpeed); }; spawn(); }
+window.onmousedown = (e) => { if(activeGame!=='mole') return; let r = canvas.getBoundingClientRect(); let x=e.clientX-r.left, y=e.clientY-r.top; moles.forEach(m => { if(m.up && Math.sqrt((x-m.x)**2+(y-m.y)**2)<50) { m.up=false; let g=2000*(rebirths+1)*power; balance+=g; moneyPop(e.clientX,e.clientY,g); if(moleSpeed > 350) moleSpeed -= 25; } }); };
+function stopGame() { clearInterval(gameInt); clearTimeout(moleSpawnInt); activeGame='none'; document.getElementById('hammer').style.display='none'; ctx.clearRect(0,0,500,400); }
+function drawSkins() { let g = document.getElementById('skin-grid'); g.innerHTML = ''; skins.forEach(s => { let lock = rebirths < s.req; let d = document.createElement('div'); d.className = `card ${activeSkin===s.n?'can-afford':''} ${lock?'locked':''}`; if(lock) d.style.opacity = "0.2"; d.innerHTML = `<h2 style="color:${s.c}">${s.n}</h2><p>${s.m}x MULTI</p><small>${lock?'REB '+s.req:'OWNED'}</small>`; if(!lock) d.onclick = () => { activeSkin=s.n; drawSkins(); saveGame(); }; g.appendChild(d); }); }
+function drawInv() { let g = document.getElementById('inv-grid'); let multi = (skins.find(s=>s.n===activeSkin) || skins[0]).m; g.innerHTML = ''; inventory.forEach((item, i) => { let d = document.createElement('div'); d.className = 'card'; d.style.borderColor = (item.c || '#fff'); d.innerHTML = `<div style="font-size:50px">${item.i}</div><b>$${f(item.val * multi)}</b>`; d.onclick = (e) => { let gain = item.val * multi; balance += gain; moneyPop(e.clientX, e.clientY, gain); inventory.splice(i, 1); drawInv(); saveGame(); }; g.appendChild(d); }); }
+function sellAll(e) { let multi = (skins.find(s=>s.n===activeSkin) || skins[0]).m; let totalGain = 0; inventory.forEach(i => totalGain += i.val * multi); if(totalGain > 0) { balance += totalGain; if(!autoSellActive) moneyPop(e.clientX, e.clientY, totalGain); inventory = []; drawInv(); saveGame(); } }
+function tab(t, e) { document.querySelectorAll('.menu-content').forEach(m => m.classList.remove('active')); document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById(t).classList.add('active'); e.currentTarget.classList.add('active'); if(t==='chests') drawChests(); if(t==='skins') drawSkins(); if(t==='inventory') drawInv(); }
+function moneyPop(x, y, v) { let d = document.createElement('div'); d.className = 'money-pop'; d.innerText = `+$${f(v)}`; d.style.left = x+'px'; d.style.top = y+'px'; document.body.appendChild(d); setTimeout(() => d.remove(), 700); }
+window.onmousemove = (e) => { document.getElementById('hammer').style.left = e.clientX+'px'; document.getElementById('hammer').style.top = e.clientY+'px'; };
+window.onkeydown = (e) => { let k = e.key.toLowerCase(); if((k==='w'||e.key==='ArrowUp')&&dir!=="DOWN") dir="UP"; if((k==='s'||e.key==='ArrowDown')&&dir!=="UP") dir="DOWN"; if((k==='a'||e.key==='ArrowLeft')&&dir!=="RIGHT") dir="LEFT"; if((k==='d'||e.key==='ArrowRight')&&dir!=="LEFT") dir="RIGHT"; };
+drawChests();
+</script>
+</body>
+</html>
